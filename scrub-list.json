@@ -1,0 +1,11 @@
+{
+  "dropPaths": [
+    "communication.*",
+    "notes.*",
+    "design.aisShipType.crew*"
+  ],
+  "redactPatterns": [
+    "(sk|ghp|gho|github_pat)_[A-Za-z0-9_]{8,}",
+    "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{5,}"
+  ]
+}
