@@ -21,4 +21,6 @@ test('returns null for garbage', () => {
   assert.strictEqual(parseMuxLine('not a mux line'), null)
   assert.strictEqual(parseMuxLine('abc;N;$GPGLL'), null)
   assert.strictEqual(parseMuxLine(''), null)
+  assert.strictEqual(parseMuxLine('0;N;payload'), null)
+  assert.strictEqual(parseMuxLine('-100;N;payload'), null)
 })
