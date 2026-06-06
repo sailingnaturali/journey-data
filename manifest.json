@@ -25,8 +25,8 @@
       "files": {
         "deltas": {
           "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-boundary-pass-sim/demo-boundary-pass-sim.jsonl.gz",
-          "sha256": "be31ff4664aa26505840350f4edc7cac1e86d6efa2cf167b605209c35e5c85b4",
-          "bytes": 24470
+          "sha256": "a23104234fd244e91477beb26b9d8f7921a405ef35481bc369d5698a8d1364f5",
+          "bytes": 24477
         }
       }
     }
