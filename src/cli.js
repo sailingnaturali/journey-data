@@ -186,7 +186,7 @@ async function main() {
     allowPositionals: true
   })
   if (!values.id || !values.title || positionals.length === 0) {
-    console.error('usage: node src/cli.js --id <id> --title <t> [--region r] [--video url] [--post url] <raw.log>...')
+    console.error('usage: node src/cli.js --id <id> --title <t> [--region r] [--video url] [--self context] [--post url] <raw.log>...')
     process.exit(2)
   }
   const r = await publish({
