@@ -1,0 +1,4 @@
+1754000000000;N;$GPGLL,6005.071,N,02332.346,E,095559,A,D*43
+1754000001000;N;$IIVTG,224.44,T,224.44,M,5.81,N,,,D*68
+1754000002000;I;{"context":"vessels.self","updates":[{"timestamp":"2020-01-01T00:00:00Z","values":[{"path":"environment.depth.belowSurface","value":38.2}]}]}
+1754000005000;N;$IIMWV,338,R,13.41,N,A*2C

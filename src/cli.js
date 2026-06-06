@@ -43,28 +43,18 @@ async function publish(opts) {
   fs.mkdirSync(opts.outDir, { recursive: true })
 
   const deltasFile = path.join(opts.outDir, `${opts.id}.jsonl.gz`)
-  const rawFile = path.join(opts.outDir, `${opts.id}.raw.log.gz`)
-  const gzOut = zlib.createGzip()
-  const outStream = fs.createWriteStream(deltasFile)
-  gzOut.pipe(outStream)
-
-  // Fix 1: byte-faithful raw copy — pipe each input directly through gzip without
-  // touching the bytes (preserves \r, blank lines, exact encoding).
-  // Sequentially append all inputs into one gzip stream: write file1 bytes then file2 bytes.
-  const rawGz = zlib.createGzip()
-  const rawStream = fs.createWriteStream(rawFile)
-  rawGz.pipe(rawStream)
-  for (let i = 0; i < opts.inputs.length; i++) {
-    const src = fs.createReadStream(opts.inputs[i])
-    await pipeline(src, rawGz, { end: i === opts.inputs.length - 1 })
-  }
-  await new Promise(r => rawStream.on('finish', r))
 
   // Fix 2: CLI-owned malformed counter — non-blank lines that aren't valid mux format.
   // converter.stats.lines then counts only records handed to convert(); that's correct.
   let malformed = 0
   let firstTs = null
   let lastTs = null
+
+  // Privacy gate tracking: detect whether scrubbing altered any delta.
+  let scrubbed = false
+  let scrubbedCount = 0
+  let firstAffected = null
+
   // Fix 3: meta line (start/end/bbox/paths) must be first and needs the full pass,
   // so the body is buffered; fine for a single-machine publish tool,
   // revisit only if legs outgrow RAM.
@@ -77,7 +67,19 @@ async function publish(opts) {
       const rec = parseMuxLine(line)
       if (!rec) { malformed++; continue }
       for (const delta of converter.convert(rec)) {
+        // Compare pre-scrub vs post-scrub to detect any alteration.
+        const preScrubJson = JSON.stringify(delta)
         const clean = scrubDelta(delta, compiled)
+
+        // Detect if scrubbing altered this delta: null result OR JSON differs.
+        if (clean === null || JSON.stringify(clean) !== preScrubJson) {
+          scrubbed = true
+          scrubbedCount++
+          if (firstAffected === null) {
+            firstAffected = { ts: rec.ts, line }
+          }
+        }
+
         if (!clean) continue
         firstTs = firstTs === null ? rec.ts : firstTs
         lastTs = rec.ts
@@ -86,6 +88,11 @@ async function publish(opts) {
       }
     }
   }
+
+  // Write scrubbed deltas file.
+  const gzOut = zlib.createGzip()
+  const outStream = fs.createWriteStream(deltasFile)
+  gzOut.pipe(outStream)
 
   const { bbox, paths } = collector.get()
   const meta = {
@@ -98,19 +105,43 @@ async function publish(opts) {
   gzOut.end()
   await new Promise(r => outStream.on('finish', r))
 
+  // Privacy gate: only write byte-faithful raw gzip if scrubbing changed nothing.
+  let rawFile = null
+  let rawWithheld = false
+
+  if (!scrubbed) {
+    // Safe to publish raw: re-read inputs and write byte-faithful gzip.
+    rawFile = path.join(opts.outDir, `${opts.id}.raw.log.gz`)
+    const rawGz = zlib.createGzip()
+    const rawStream = fs.createWriteStream(rawFile)
+    rawGz.pipe(rawStream)
+    for (let i = 0; i < opts.inputs.length; i++) {
+      const src = fs.createReadStream(opts.inputs[i])
+      await pipeline(src, rawGz, { end: i === opts.inputs.length - 1 })
+    }
+    await new Promise(r => rawStream.on('finish', r))
+  } else {
+    rawWithheld = true
+  }
+
+  // Build manifest entry — files.raw only present when raw was published.
+  const filesEntry = {
+    deltas: { url: `${RELEASE_BASE}/${opts.id}/${opts.id}.jsonl.gz`, sha256: sha256(deltasFile), bytes: fs.statSync(deltasFile).size }
+  }
+  if (rawFile) {
+    filesEntry.raw = { url: `${RELEASE_BASE}/${opts.id}/${opts.id}.raw.log.gz`, sha256: sha256(rawFile), bytes: fs.statSync(rawFile).size }
+  }
+
   const entry = {
     id: opts.id, title: opts.title,
     start: meta.start, end: meta.end,
     region: opts.region, bbox, paths,
-    files: {
-      deltas: { url: `${RELEASE_BASE}/${opts.id}/${opts.id}.jsonl.gz`, sha256: sha256(deltasFile), bytes: fs.statSync(deltasFile).size },
-      raw: { url: `${RELEASE_BASE}/${opts.id}/${opts.id}.raw.log.gz`, sha256: sha256(rawFile), bytes: fs.statSync(rawFile).size }
-    },
+    files: filesEntry,
     ...(opts.video ? { video: opts.video } : {}),
     ...(opts.post ? { post: opts.post } : {})
   }
   upsertTrip(opts.manifestPath, entry)
-  return { entry, stats: { ...converter.stats, malformed }, deltasFile, rawFile }
+  return { entry, stats: { ...converter.stats, malformed }, deltasFile, rawFile, rawWithheld }
 }
 
 async function main() {
@@ -134,8 +165,14 @@ async function main() {
     manifestPath: values.manifest, scrubListPath: values['scrub-list']
   })
   console.log(JSON.stringify(r.stats))
-  console.log(`\nwrote ${r.deltasFile} and ${r.rawFile}; manifest updated.`)
-  console.log(`publish with:\n  gh release create ${r.entry.id} ${r.deltasFile} ${r.rawFile} --title "${r.entry.title}" --notes "See manifest.json"`)
+  if (r.rawWithheld) {
+    console.log(`\nraw log withheld: scrubbing affected delta(s) — publishing scrubbed deltas only`)
+    console.log(`wrote ${r.deltasFile}; manifest updated.`)
+    console.log(`publish with:\n  gh release create ${r.entry.id} ${r.deltasFile} --title "${r.entry.title}" --notes "See manifest.json"`)
+  } else {
+    console.log(`\nwrote ${r.deltasFile} and ${r.rawFile}; manifest updated.`)
+    console.log(`publish with:\n  gh release create ${r.entry.id} ${r.deltasFile} ${r.rawFile} --title "${r.entry.title}" --notes "See manifest.json"`)
+  }
   console.log('then commit manifest.json.')
 }
 
