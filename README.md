@@ -25,7 +25,7 @@ battery, tanks, and AIS data from every trip we log.
 ## Replay it
 
 Easiest: install `@sailingnaturali/signalk-journey-replay` from the SignalK
-App Store (in development), pick a trip, press play (it rebases timestamps
+App Store, pick a trip, press play (it rebases timestamps
 to "now"). Or go native where a raw file exists: gunzip it and configure a
 SignalK file connection.
 
