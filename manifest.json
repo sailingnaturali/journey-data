@@ -1,0 +1,69 @@
+{
+  "manifestVersion": 1,
+  "publisher": "sailingnaturali",
+  "trips": [
+    {
+      "id": "demo-boundary-pass-sim",
+      "title": "Boundary Pass (simulated demo, Phase 0 mock vessel)",
+      "start": "2026-06-06T07:57:05.504Z",
+      "end": "2026-06-06T08:07:02.333Z",
+      "region": "Salish Sea, BC",
+      "bbox": [
+        -123.05203775364606,
+        48.76207318784803,
+        -123.05196247195916,
+        48.76212672300048
+      ],
+      "paths": [
+        "design",
+        "electrical",
+        "environment",
+        "navigation",
+        "notifications",
+        "tanks"
+      ],
+      "files": {
+        "deltas": {
+          "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-boundary-pass-sim/demo-boundary-pass-sim.jsonl.gz",
+          "sha256": "be31ff4664aa26505840350f4edc7cac1e86d6efa2cf167b605209c35e5c85b4",
+          "bytes": 24470
+        },
+        "raw": {
+          "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-boundary-pass-sim/demo-boundary-pass-sim.raw.log.gz",
+          "sha256": "3e37b2123898f580955d60237cb8add89517412328d24b3410978fb164d531df",
+          "bytes": 25303
+        }
+      }
+    },
+    {
+      "id": "demo-mini",
+      "title": "Mini fixture trip",
+      "start": "2025-07-31T22:13:20.000Z",
+      "end": "2025-07-31T22:13:25.000Z",
+      "region": "Salish Sea, BC",
+      "bbox": [
+        23.5391,
+        60.084516666666666,
+        23.5391,
+        60.084516666666666
+      ],
+      "paths": [
+        "environment",
+        "navigation"
+      ],
+      "files": {
+        "deltas": {
+          "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-mini/demo-mini.jsonl.gz",
+          "sha256": "a02aa87a84954c2a43179cbf83a87b73ad58f887999591c30928202952664aa1",
+          "bytes": 494
+        },
+        "raw": {
+          "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-mini/demo-mini.raw.log.gz",
+          "sha256": "4c380f3f89622a27c17a547e6899963aabd9869c6b809a06f1cee749b3e4f2e3",
+          "bytes": 336
+        }
+      },
+      "video": "https://youtube.com/example"
+    }
+  ]
+}
