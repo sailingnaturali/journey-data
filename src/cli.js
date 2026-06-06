@@ -4,6 +4,7 @@ const path = require('node:path')
 const zlib = require('node:zlib')
 const crypto = require('node:crypto')
 const readline = require('node:readline')
+const { pipeline } = require('node:stream/promises')
 const { parseArgs } = require('node:util')
 const { parseMuxLine } = require('./mux')
 const { createConverter } = require('./convert')
@@ -46,21 +47,35 @@ async function publish(opts) {
   const gzOut = zlib.createGzip()
   const outStream = fs.createWriteStream(deltasFile)
   gzOut.pipe(outStream)
+
+  // Fix 1: byte-faithful raw copy — pipe each input directly through gzip without
+  // touching the bytes (preserves \r, blank lines, exact encoding).
+  // Sequentially append all inputs into one gzip stream: write file1 bytes then file2 bytes.
   const rawGz = zlib.createGzip()
   const rawStream = fs.createWriteStream(rawFile)
   rawGz.pipe(rawStream)
+  for (let i = 0; i < opts.inputs.length; i++) {
+    const src = fs.createReadStream(opts.inputs[i])
+    await pipeline(src, rawGz, { end: i === opts.inputs.length - 1 })
+  }
+  await new Promise(r => rawStream.on('finish', r))
 
+  // Fix 2: CLI-owned malformed counter — non-blank lines that aren't valid mux format.
+  // converter.stats.lines then counts only records handed to convert(); that's correct.
+  let malformed = 0
   let firstTs = null
   let lastTs = null
+  // Fix 3: meta line (start/end/bbox/paths) must be first and needs the full pass,
+  // so the body is buffered; fine for a single-machine publish tool,
+  // revisit only if legs outgrow RAM.
   const bodyLines = []
 
   for (const input of opts.inputs) {
     const rl = readline.createInterface({ input: fs.createReadStream(input), crlfDelay: Infinity })
     for await (const line of rl) {
       if (!line.trim()) continue
-      rawGz.write(line + '\n')
       const rec = parseMuxLine(line)
-      if (!rec) { converter.stats.skipped++; converter.stats.lines++; continue }
+      if (!rec) { malformed++; continue }
       for (const delta of converter.convert(rec)) {
         const clean = scrubDelta(delta, compiled)
         if (!clean) continue
@@ -81,11 +96,7 @@ async function publish(opts) {
   gzOut.write(JSON.stringify(meta) + '\n')
   for (const l of bodyLines) gzOut.write(l + '\n')
   gzOut.end()
-  rawGz.end()
-  await Promise.all([
-    new Promise(r => outStream.on('finish', r)),
-    new Promise(r => rawStream.on('finish', r))
-  ])
+  await new Promise(r => outStream.on('finish', r))
 
   const entry = {
     id: opts.id, title: opts.title,
@@ -99,7 +110,7 @@ async function publish(opts) {
     ...(opts.post ? { post: opts.post } : {})
   }
   upsertTrip(opts.manifestPath, entry)
-  return { entry, stats: converter.stats, deltasFile, rawFile }
+  return { entry, stats: { ...converter.stats, malformed }, deltasFile, rawFile }
 }
 
 async function main() {

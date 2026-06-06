@@ -39,6 +39,38 @@ test('publishes fixture trip: jsonl.gz + raw.gz + manifest + stats', async () =>
   assert.ok(trip.files.deltas.bytes > 0)
   assert.ok(trip.files.deltas.url.includes('releases/download/demo-mini/'))
 
-  assert.strictEqual(result.stats.unsupported, 1)
-  assert.ok(result.stats.skipped >= 1)
+  // Fix 2: exact stats — converter.stats.lines counts only records handed to convert();
+  // malformed is a cli-owned counter for non-blank non-mux lines.
+  // fixture: 7 lines, 1 garbage→malformed, 1 A→unsupported, 5 convert to deltas
+  assert.deepStrictEqual(result.stats, { lines: 6, deltas: 5, skipped: 0, unsupported: 1, unrecognized: 0, malformed: 1 })
+})
+
+test('raw archive is byte-faithful gzip of original input', async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'jd-cli-raw-'))
+  const manifestPath = path.join(out, 'manifest.json')
+  const fixturePath = path.join(__dirname, 'fixtures', 'mini-trip.mux.log')
+  await publish({
+    inputs: [fixturePath],
+    id: 'demo-mini', title: 'Mini fixture trip', region: 'Salish Sea, BC',
+    outDir: out, manifestPath,
+    scrubListPath: path.join(__dirname, '..', 'scrub-list.json')
+  })
+  // Fix 1: gunzip the raw file and assert it equals the fixture bytes exactly
+  const raw = zlib.gunzipSync(fs.readFileSync(path.join(out, 'demo-mini.raw.log.gz')))
+  assert.deepStrictEqual(raw, fs.readFileSync(fixturePath))
+})
+
+test('idempotent republish: manifest has exactly one trip', async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'jd-cli-idem-'))
+  const manifestPath = path.join(out, 'manifest.json')
+  const opts = {
+    inputs: [path.join(__dirname, 'fixtures', 'mini-trip.mux.log')],
+    id: 'demo-mini', title: 'Mini fixture trip', region: 'Salish Sea, BC',
+    outDir: out, manifestPath,
+    scrubListPath: path.join(__dirname, '..', 'scrub-list.json')
+  }
+  await publish(opts)
+  await publish(opts)
+  const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  assert.strictEqual(m.trips.filter(t => t.id === 'demo-mini').length, 1)
 })
