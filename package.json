@@ -8,6 +8,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@signalk/nmea0183-signalk": "^3.20.0"
+    "@signalk/nmea0183-signalk": "^3.20.0",
+    "ws": "^8.21.0"
   }
 }
