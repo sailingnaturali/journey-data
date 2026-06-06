@@ -27,14 +27,8 @@
           "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-boundary-pass-sim/demo-boundary-pass-sim.jsonl.gz",
           "sha256": "be31ff4664aa26505840350f4edc7cac1e86d6efa2cf167b605209c35e5c85b4",
           "bytes": 24470
-        },
-        "raw": {
-          "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-boundary-pass-sim/demo-boundary-pass-sim.raw.log.gz",
-          "sha256": "3e37b2123898f580955d60237cb8add89517412328d24b3410978fb164d531df",
-          "bytes": 25303
         }
       }
     }
   ]
 }
-
