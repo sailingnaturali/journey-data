@@ -34,36 +34,7 @@
           "bytes": 25303
         }
       }
-    },
-    {
-      "id": "demo-mini",
-      "title": "Mini fixture trip",
-      "start": "2025-07-31T22:13:20.000Z",
-      "end": "2025-07-31T22:13:25.000Z",
-      "region": "Salish Sea, BC",
-      "bbox": [
-        23.5391,
-        60.084516666666666,
-        23.5391,
-        60.084516666666666
-      ],
-      "paths": [
-        "environment",
-        "navigation"
-      ],
-      "files": {
-        "deltas": {
-          "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-mini/demo-mini.jsonl.gz",
-          "sha256": "a02aa87a84954c2a43179cbf83a87b73ad58f887999591c30928202952664aa1",
-          "bytes": 494
-        },
-        "raw": {
-          "url": "https://github.com/sailingnaturali/journey-data/releases/download/demo-mini/demo-mini.raw.log.gz",
-          "sha256": "4c380f3f89622a27c17a547e6899963aabd9869c6b809a06f1cee749b3e4f2e3",
-          "bytes": 336
-        }
-      },
-      "video": "https://youtube.com/example"
     }
   ]
 }
+
