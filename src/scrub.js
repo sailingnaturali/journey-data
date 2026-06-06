@@ -65,23 +65,9 @@ function scrubPathEmptyObject(obj, { drop, prefixes }) {
 
     const v = obj[k]
     if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-      // For nested objects, check each leaf's synthetic path.
-      const nested = {}
-      let hasLeaf = false
-      for (const [synPath] of flattenObject(v, k)) {
-        // We only need to check if the full synthetic path is dropped.
-        const leafDropped = drop.some(re => re.test(synPath)) ||
-          prefixes.some(p => p !== '' && (synPath === p || synPath.startsWith(p + '.')))
-        if (!leafDropped) {
-          hasLeaf = true
-        }
-      }
-      if (hasLeaf) {
-        // Rebuild nested without dropped leaves (shallow: only need one level for now,
-        // but recurse for full correctness).
-        const sub = scrubPathEmptyObject(v, { drop, prefixes })
-        if (sub !== null) result[k] = sub
-      }
+      // Rebuild nested without dropped leaves.
+      const sub = scrubPathEmptyObject(v, { drop, prefixes })
+      if (sub !== null) result[k] = sub
     } else {
       result[k] = v
     }

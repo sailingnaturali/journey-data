@@ -9,6 +9,8 @@ const { Parser } = require('@signalk/nmea0183-signalk')
 // Stats counters:
 //   skipped      — corrupt input: parser.parse or JSON.parse threw (bad checksum,
 //                  invalid syntax, etc.)
+//   unsupported  — records with a discriminator other than N/I (e.g. Actisense A-lines),
+//                  unsupported in v1.
 //   unrecognized — clean parse but no usable delta: parser returned null/undefined
 //                  (unknown-but-valid sentence type) or valid JSON lacked a
 //                  non-empty updates array.
