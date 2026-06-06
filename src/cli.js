@@ -17,23 +17,47 @@ function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 }
 
-// Track bbox [minLon, minLat, maxLon, maxLat] and top-level path groups.
+// Track bbox [minLon, minLat, maxLon, maxLat], top-level path groups, and vessel context.
 function makeCollector() {
   const groups = new Set()
   let bbox = null
-  function see(values) {
+  // context frequency maps: positioned (deltas with a valid navigation.position)
+  // and all (every delta that carries a non-empty context)
+  const positionedCtx = new Map()
+  const allCtx = new Map()
+
+  function see(values, context) {
+    let hasPosition = false
     for (const v of values) {
       if (v.path) groups.add(v.path.split('.')[0])
       if (v.path === 'navigation.position' && v.value &&
-          typeof v.value.latitude === 'number' && typeof v.value.longitude === 'number') {
+          typeof v.value.latitude === 'number' && isFinite(v.value.latitude) &&
+          typeof v.value.longitude === 'number' && isFinite(v.value.longitude)) {
         const { latitude: lat, longitude: lon } = v.value
         bbox = bbox
           ? [Math.min(bbox[0], lon), Math.min(bbox[1], lat), Math.max(bbox[2], lon), Math.max(bbox[3], lat)]
           : [lon, lat, lon, lat]
+        hasPosition = true
       }
     }
+    if (context && typeof context === 'string' && context.length > 0) {
+      allCtx.set(context, (allCtx.get(context) || 0) + 1)
+      if (hasPosition) positionedCtx.set(context, (positionedCtx.get(context) || 0) + 1)
+    }
   }
-  return { see, get: () => ({ bbox, paths: [...groups].sort() }) }
+
+  function topKey(map) {
+    let best = null; let bestCount = 0
+    for (const [k, v] of map) { if (v > bestCount) { best = k; bestCount = v } }
+    return best
+  }
+
+  function get() {
+    const self = topKey(positionedCtx) || topKey(allCtx) || undefined
+    return { bbox, paths: [...groups].sort(), self }
+  }
+
+  return { see, get }
 }
 
 async function publish(opts) {
@@ -83,7 +107,7 @@ async function publish(opts) {
         if (!clean) continue
         firstTs = firstTs === null ? rec.ts : firstTs
         lastTs = rec.ts
-        for (const u of clean.updates) collector.see(u.values || [])
+        for (const u of clean.updates) collector.see(u.values || [], clean.context)
         bodyLines.push(JSON.stringify(clean))
       }
     }
@@ -94,11 +118,13 @@ async function publish(opts) {
   const outStream = fs.createWriteStream(deltasFile)
   gzOut.pipe(outStream)
 
-  const { bbox, paths } = collector.get()
+  const { bbox, paths, self: detectedSelf } = collector.get()
+  const self = opts.self || detectedSelf
   const meta = {
     journeyDataVersion: 1, id: opts.id, title: opts.title, region: opts.region,
     start: firstTs && new Date(firstTs).toISOString(),
-    end: lastTs && new Date(lastTs).toISOString(), bbox, paths
+    end: lastTs && new Date(lastTs).toISOString(), bbox, paths,
+    ...(self ? { self } : {})
   }
   gzOut.write(JSON.stringify(meta) + '\n')
   for (const l of bodyLines) gzOut.write(l + '\n')
@@ -151,6 +177,7 @@ async function main() {
   const { values, positionals } = parseArgs({
     options: {
       id: { type: 'string' }, title: { type: 'string' }, region: { type: 'string' },
+      self: { type: 'string' },
       video: { type: 'string' }, post: { type: 'string' },
       out: { type: 'string', default: 'dist' },
       manifest: { type: 'string', default: 'manifest.json' },
@@ -164,7 +191,7 @@ async function main() {
   }
   const r = await publish({
     inputs: positionals, id: values.id, title: values.title, region: values.region,
-    video: values.video, post: values.post, outDir: values.out,
+    self: values.self, video: values.video, post: values.post, outDir: values.out,
     manifestPath: values.manifest, scrubListPath: values['scrub-list']
   })
   console.log(JSON.stringify(r.stats))

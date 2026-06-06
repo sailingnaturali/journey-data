@@ -52,6 +52,12 @@ test('publishes fixture trip: jsonl.gz + manifest + stats (dirty fixture — NO 
   // malformed is a cli-owned counter for non-blank non-mux lines.
   // fixture: 7 lines, 1 garbage→malformed, 1 A→unsupported, 5 convert to deltas
   assert.deepStrictEqual(result.stats, { lines: 6, deltas: 5, skipped: 0, unsupported: 1, unrecognized: 0, malformed: 1 })
+
+  // meta.self: no positioned delta has a context; fall through to most frequent
+  // across all deltas — two I-lines carry context "vessels.self" → meta.self = "vessels.self"
+  assert.strictEqual(meta.self, 'vessels.self')
+  // Manifest trip entry must NOT carry self (meta-only field)
+  assert.ok(!('self' in trip), 'manifest trip entry must not have self')
 })
 
 test('dirty fixture: raw archive is NOT created (privacy gate)', async () => {
@@ -112,4 +118,35 @@ test('idempotent republish: manifest has exactly one trip', async () => {
   await publish(opts)
   const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   assert.strictEqual(m.trips.filter(t => t.id === 'demo-mini').length, 1)
+})
+
+test('explicit opts.self overrides detected context', async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'jd-cli-self-'))
+  const manifestPath = path.join(out, 'manifest.json')
+  await publish({
+    inputs: [path.join(__dirname, 'fixtures', 'mini-trip.mux.log')],
+    id: 'demo-self', title: 'Self override test', region: 'Salish Sea, BC',
+    self: 'vessels.urn:x',
+    outDir: out, manifestPath,
+    scrubListPath: path.join(__dirname, '..', 'scrub-list.json')
+  })
+  const gz = path.join(out, 'demo-self.jsonl.gz')
+  const lines = zlib.gunzipSync(fs.readFileSync(gz)).toString('utf8').trim().split('\n')
+  const meta = JSON.parse(lines[0])
+  assert.strictEqual(meta.self, 'vessels.urn:x')
+})
+
+test('no-context fixture: self key absent from meta', async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'jd-cli-noself-'))
+  const manifestPath = path.join(out, 'manifest.json')
+  await publish({
+    inputs: [path.join(__dirname, 'fixtures', 'no-context-trip.mux.log')],
+    id: 'demo-noself', title: 'No-self test', region: 'Salish Sea, BC',
+    outDir: out, manifestPath,
+    scrubListPath: path.join(__dirname, '..', 'scrub-list.json')
+  })
+  const gz = path.join(out, 'demo-noself.jsonl.gz')
+  const lines = zlib.gunzipSync(fs.readFileSync(gz)).toString('utf8').trim().split('\n')
+  const meta = JSON.parse(lines[0])
+  assert.strictEqual('self' in meta, false, 'meta must not have self when no contexts seen')
 })
