@@ -108,10 +108,11 @@ async function publish(opts) {
   // Privacy gate: only write byte-faithful raw gzip if scrubbing changed nothing.
   let rawFile = null
   let rawWithheld = false
+  const rawFilePath = path.join(opts.outDir, `${opts.id}.raw.log.gz`)
 
   if (!scrubbed) {
     // Safe to publish raw: re-read inputs and write byte-faithful gzip.
-    rawFile = path.join(opts.outDir, `${opts.id}.raw.log.gz`)
+    rawFile = rawFilePath
     const rawGz = zlib.createGzip()
     const rawStream = fs.createWriteStream(rawFile)
     rawGz.pipe(rawStream)
@@ -122,6 +123,8 @@ async function publish(opts) {
     await new Promise(r => rawStream.on('finish', r))
   } else {
     rawWithheld = true
+    // Delete any pre-existing raw file left by an earlier run when privacy gate withholds
+    fs.rmSync(rawFilePath, { force: true })
   }
 
   // Build manifest entry — files.raw only present when raw was published.

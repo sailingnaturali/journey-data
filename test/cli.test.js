@@ -58,6 +58,12 @@ test('dirty fixture: raw archive is NOT created (privacy gate)', async () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'jd-cli-raw-'))
   const manifestPath = path.join(out, 'manifest.json')
   const fixturePath = path.join(__dirname, 'fixtures', 'mini-trip.mux.log')
+  const rawPath = path.join(out, 'demo-mini.raw.log.gz')
+
+  // Pre-create a dummy raw file to test that privacy gate deletes stale files
+  fs.writeFileSync(rawPath, 'stale content')
+  assert.ok(fs.existsSync(rawPath), 'dummy raw file must exist before publish')
+
   const result = await publish({
     inputs: [fixturePath],
     id: 'demo-mini', title: 'Mini fixture trip', region: 'Salish Sea, BC',
