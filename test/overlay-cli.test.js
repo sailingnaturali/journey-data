@@ -66,3 +66,28 @@ test('moments resolves a CSV of timestamps to overlay rows', () => {
   assert.match(lines[0], /^timestamp,label,windSpeedTrueKn,/)
   assert.match(lines[1], /^2026-06-06T00:00:00.000Z,gust,15/)
 })
+
+test('moments preserves a label containing a comma (CSV round-trip)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moments-'))
+  const mfile = path.join(dir, 'm.csv')
+  fs.writeFileSync(mfile, 'timestamp,label\n2026-06-06T00:00:00.000Z,"port tack, big wave"\n')
+  const out = run(['moments', TRIP2(), '--moments', mfile])
+  assert.match(out, /"port tack, big wave"/) // re-quoted, intact
+})
+
+const { spawnSync } = require('node:child_process')
+function runCapture(args) {
+  return spawnSync('node', [CLI, ...args], { encoding: 'utf8' })
+}
+
+test('at warns to stderr when timestamp is outside the trip', () => {
+  const r = runCapture(['at', TRIP2(), '--time', '2020-01-01T00:00:00.000Z', '--json'])
+  assert.strictEqual(r.status, 0)
+  assert.match(r.stderr, /warning:.*outside trip/)
+})
+
+test('at exits non-zero with a message on an invalid timestamp', () => {
+  const r = runCapture(['at', TRIP2(), '--time', 'not-a-date'])
+  assert.notStrictEqual(r.status, 0)
+  assert.match(r.stderr, /invalid timestamp/)
+})

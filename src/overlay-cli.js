@@ -12,9 +12,12 @@ function parseClock(s) {
 }
 
 function resolveTime(v) {
-  if (v.time) return Date.parse(v.time)
-  if (v['video-start'] && v.at != null) return Date.parse(v['video-start']) + parseClock(v.at) * 1000
-  throw new Error('provide --time <UTC>, or --video-start <UTC> with --at <clock>')
+  let ms
+  if (v.time) ms = Date.parse(v.time)
+  else if (v['video-start'] && v.at != null) ms = Date.parse(v['video-start']) + parseClock(v.at) * 1000
+  else throw new Error('provide --time <UTC>, or --video-start <UTC> with --at <clock>')
+  if (!Number.isFinite(ms)) throw new Error(`invalid timestamp: ${v.time ?? v['video-start']}`)
+  return ms
 }
 
 function prettyAt(fields) {
@@ -47,13 +50,31 @@ function emit(text, outPath) {
   else process.stdout.write(text)
 }
 
+// split a CSV line, respecting double-quoted fields ("" escapes a literal quote)
+function splitCsvLine(l) {
+  const cells = []
+  let cur = ''
+  let inQ = false
+  for (let i = 0; i < l.length; i++) {
+    const ch = l[i]
+    if (inQ) {
+      if (ch === '"') { if (l[i + 1] === '"') { cur += '"'; i++ } else inQ = false }
+      else cur += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === ',') { cells.push(cur); cur = '' }
+    else cur += ch
+  }
+  cells.push(cur)
+  return cells
+}
+
 // minimal CSV reader: first row is the header; returns array of row objects
 function readCsv(file) {
   const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((l) => l.length)
   if (lines.length === 0) return []
-  const header = lines[0].split(',')
+  const header = splitCsvLine(lines[0])
   return lines.slice(1).map((l) => {
-    const cells = l.split(',')
+    const cells = splitCsvLine(l)
     return Object.fromEntries(header.map((h, i) => [h.trim(), (cells[i] ?? '').trim()]))
   })
 }
@@ -74,11 +95,16 @@ async function main() {
     process.exit(2)
   }
   const opts = { feet: values.feet }
-  if (values['max-stale'] != null) opts.maxStaleSec = Number(values['max-stale'])
+  if (values['max-stale'] != null) {
+    const n = Number(values['max-stale'])
+    if (!Number.isFinite(n)) { console.error(`invalid --max-stale: ${values['max-stale']}`); process.exit(2) }
+    opts.maxStaleSec = n
+  }
   const tl = await loadTrip(trip)
 
   if (cmd === 'export') {
     const hz = values.hz != null ? Number(values.hz) : 1
+    if (!Number.isFinite(hz) || hz <= 0) { console.error(`invalid --hz: ${values.hz}`); process.exit(2) }
     const rows = tl.resample(hz, opts)
     emit(rowsToCsv(rows, ['timestamp', ...OVERLAY_FIELDS]), values.out)
     return
@@ -90,6 +116,7 @@ async function main() {
     if (input.length === 0) console.error('warning: no moments in input')
     const rows = input.map((m) => {
       const ms = Date.parse(m.timestamp)
+      if (!Number.isFinite(ms)) console.error(`warning: skipping unparseable timestamp: ${m.timestamp}`)
       const fields = toOverlay(tl.at(ms, opts), opts)
       return { timestamp: m.timestamp, label: m.label ?? '', ...fields }
     })
@@ -99,7 +126,7 @@ async function main() {
 
   // cmd === 'at'
   const ms = resolveTime(values)
-  if (ms < tl.start || ms > tl.end) console.error(`warning: ${new Date(ms).toISOString()} is outside trip [${new Date(tl.start).toISOString()}, ${new Date(tl.end).toISOString()}]`)
+  if (tl.start !== null && (ms < tl.start || ms > tl.end)) console.error(`warning: ${new Date(ms).toISOString()} is outside trip [${new Date(tl.start).toISOString()}, ${new Date(tl.end).toISOString()}]`)
   const provenance = tl.at(ms, opts)
   const fields = toOverlay(provenance, opts)
   if (values.json) console.log(JSON.stringify({ time: new Date(ms).toISOString(), fields, provenance }, null, 2))

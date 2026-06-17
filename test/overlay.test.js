@@ -116,7 +116,7 @@ test('toOverlay power: percent, derived battery watts', () => {
   const tl = tlFrom([
     ['electrical.batteries.house.capacity.stateOfCharge', 0.553],
     ['electrical.batteries.house.voltage', 52.0],
-    ['electrical.batteries.house.current', -10.0], // charging
+    ['electrical.batteries.house.current', -10.0], // sign per source convention; power = V*A = -520
     ['tanks.freshWater.0.currentLevel', 0.8],
     ['propulsion.port.runTime', 44280],
   ])
