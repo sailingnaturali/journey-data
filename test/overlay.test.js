@@ -78,3 +78,67 @@ test('buildTimeline exposes start and end epoch ms', () => {
   assert.strictEqual(tl.start, Date.parse('2026-06-06T00:00:00.000Z'))
   assert.strictEqual(tl.end, Date.parse('2026-06-06T00:00:20.000Z'))
 })
+
+const { toOverlay, OVERLAY_FIELDS } = require('../src/overlay')
+
+function tlFrom(pairs, ts = '2026-06-06T00:00:00.000Z') {
+  return buildTimeline(pairs.map(([p, v]) => delta(ts, p, v)))
+}
+
+test('toOverlay converts wind/nav/depth/sea-state with units', () => {
+  const tl = tlFrom([
+    ['environment.wind.speedTrue', 7.7],
+    ['environment.wind.directionTrue', Math.PI],          // 180
+    ['environment.wind.angleApparent', -Math.PI / 2],     // -90
+    ['navigation.speedThroughWater', 3.0],
+    ['environment.depth.belowKeel', 10],
+    ['environment.water.swell.state', 5],
+    ['navigation.position', { latitude: 48.7621, longitude: -123.052 }],
+  ])
+  const o = toOverlay(tl.at('2026-06-06T00:00:00.000Z'))
+  assert.strictEqual(o.windSpeedTrueKn, 15.0)
+  assert.strictEqual(o.windDirTrueDeg, 180)
+  assert.strictEqual(o.windAngleApparentDeg, -90)
+  assert.strictEqual(o.speedThroughWaterKn, 5.8)
+  assert.strictEqual(o.depthBelowKeel, 10)
+  assert.strictEqual(o.seaState, 5)
+  assert.strictEqual(o.seaStateLabel, 'Rough')
+  assert.strictEqual(o.lat, 48.7621)
+  assert.strictEqual(o.lon, -123.052)
+})
+
+test('toOverlay --feet converts depth', () => {
+  const tl = tlFrom([['environment.depth.belowKeel', 10]])
+  assert.strictEqual(toOverlay(tl.at('2026-06-06T00:00:00.000Z'), { feet: true }).depthBelowKeel, 32.8)
+})
+
+test('toOverlay power: percent, derived battery watts', () => {
+  const tl = tlFrom([
+    ['electrical.batteries.house.capacity.stateOfCharge', 0.553],
+    ['electrical.batteries.house.voltage', 52.0],
+    ['electrical.batteries.house.current', -10.0], // charging
+    ['tanks.freshWater.0.currentLevel', 0.8],
+    ['propulsion.port.runTime', 44280],
+  ])
+  const o = toOverlay(tl.at('2026-06-06T00:00:00.000Z'))
+  assert.strictEqual(o.batterySocPct, 55.3)
+  assert.strictEqual(o.batteryPowerW, -520) // 52 * -10
+  assert.strictEqual(o.freshWaterPct, 80)
+  assert.strictEqual(o.portEngineHours, 12.3)
+})
+
+test('toOverlay nulls absent paths (solar/regen on mock) and stale samples', () => {
+  const tl = tlFrom([['environment.wind.speedTrue', 5]])
+  const o = toOverlay(tl.at('2026-06-06T00:00:00.000Z'))
+  assert.strictEqual(o.solarPowerW, null)
+  assert.strictEqual(o.regenPowerW, null)
+  assert.strictEqual(o.seaState, null)
+  // stale -> nulled by default
+  const stale = toOverlay(tl.at('2026-06-06T00:05:00.000Z', { maxStaleSec: 30 }))
+  assert.strictEqual(stale.windSpeedTrueKn, null)
+})
+
+test('OVERLAY_FIELDS lists every output field once', () => {
+  const o = toOverlay(buildTimeline([]).at('2026-06-06T00:00:00.000Z'))
+  assert.deepStrictEqual(new Set(OVERLAY_FIELDS), new Set(Object.keys(o)))
+})

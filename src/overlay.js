@@ -61,7 +61,71 @@ function buildTimeline(deltas) {
   return new Timeline(series, start, end)
 }
 
+const OVERLAY_FIELDS = [
+  'windSpeedTrueKn', 'windSpeedApparentKn', 'windDirTrueDeg', 'windAngleApparentDeg',
+  'speedThroughWaterKn', 'speedOverGroundKn', 'headingTrueDeg', 'courseOverGroundDeg',
+  'lat', 'lon', 'depthBelowKeel', 'depthBelowTransducer', 'seaState', 'seaStateLabel',
+  'batterySocPct', 'batteryVoltage', 'batteryCurrentA', 'batteryPowerW',
+  'solarPowerW', 'regenPowerW', 'freshWaterPct', 'blackWaterPct', 'greyWaterPct',
+  'portEngineHours', 'stbdEngineHours',
+]
+
+function round6(x) { return Math.round(x * 1e6) / 1e6 }
+
+// atResult: { [path]: { value, stale, ... } } from Timeline.at
+function toOverlay(atResult, { feet = false, dropStale = true } = {}) {
+  const v = (path) => {
+    const e = atResult[path]
+    if (!e || e.value === undefined || e.value === null) return null
+    if (dropStale && e.stale) return null
+    return e.value
+  }
+  const conv = (path, fn) => { const x = v(path); return x === null ? null : fn(x) }
+  const depth = (path) => conv(path, (x) => (feet ? mToFeet(x) : round1(x)))
+
+  const pos = v('navigation.position')
+  const seaState = v('environment.water.swell.state')
+  const volt = v('electrical.batteries.house.voltage')
+  const amp = v('electrical.batteries.house.current')
+  const pPort = v('propulsion.port.power')
+  const pStbd = v('propulsion.starboard.power')
+  let regenPowerW = null
+  if (pPort !== null || pStbd !== null) {
+    const total = (pPort || 0) + (pStbd || 0)
+    regenPowerW = total < 0 ? Math.round(-total) : 0
+  }
+  const solar = v('electrical.solar.0.panelPower')
+
+  return {
+    windSpeedTrueKn: conv('environment.wind.speedTrue', mpsToKnots),
+    windSpeedApparentKn: conv('environment.wind.speedApparent', mpsToKnots),
+    windDirTrueDeg: conv('environment.wind.directionTrue', radToDeg360),
+    windAngleApparentDeg: conv('environment.wind.angleApparent', radToDegSigned),
+    speedThroughWaterKn: conv('navigation.speedThroughWater', mpsToKnots),
+    speedOverGroundKn: conv('navigation.speedOverGround', mpsToKnots),
+    headingTrueDeg: conv('navigation.headingTrue', radToDeg360),
+    courseOverGroundDeg: conv('navigation.courseOverGroundTrue', radToDeg360),
+    lat: pos === null ? null : round6(pos.latitude),
+    lon: pos === null ? null : round6(pos.longitude),
+    depthBelowKeel: depth('environment.depth.belowKeel'),
+    depthBelowTransducer: depth('environment.depth.belowTransducer'),
+    seaState: seaState === null ? null : seaState,
+    seaStateLabel: seaState === null ? null : seaStateLabel(seaState),
+    batterySocPct: conv('electrical.batteries.house.capacity.stateOfCharge', ratioToPct),
+    batteryVoltage: volt === null ? null : round1(volt),
+    batteryCurrentA: amp === null ? null : round1(amp),
+    batteryPowerW: (volt === null || amp === null) ? null : Math.round(volt * amp),
+    solarPowerW: solar === null ? null : Math.round(solar),
+    regenPowerW,
+    freshWaterPct: conv('tanks.freshWater.0.currentLevel', ratioToPct),
+    blackWaterPct: conv('tanks.blackWater.0.currentLevel', ratioToPct),
+    greyWaterPct: conv('tanks.greyWater.0.currentLevel', ratioToPct),
+    portEngineHours: conv('propulsion.port.runTime', secToHours),
+    stbdEngineHours: conv('propulsion.starboard.runTime', secToHours),
+  }
+}
+
 module.exports = {
   round1, mpsToKnots, radToDeg360, radToDegSigned, ratioToPct, secToHours,
-  mToFeet, seaStateLabel, buildTimeline, Timeline,
+  mToFeet, seaStateLabel, buildTimeline, Timeline, toOverlay, OVERLAY_FIELDS,
 }
