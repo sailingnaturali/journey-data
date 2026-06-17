@@ -178,3 +178,20 @@ test('loadTrip skips blank and malformed lines', async () => {
   const tl = await loadTrip(file)
   assert.strictEqual(tl.at('2026-06-06T00:00:00.000Z')['environment.wind.speedTrue'].value, 5)
 })
+
+test('resample yields fixed-cadence rows from start to end inclusive', () => {
+  const tl = buildTimeline([
+    delta('2026-06-06T00:00:00.000Z', 'environment.wind.speedTrue', 5),
+    delta('2026-06-06T00:00:02.000Z', 'environment.wind.speedTrue', 9),
+  ])
+  const rows = tl.resample(1) // 1 Hz over a 2s span -> t=0,1,2 -> 3 rows
+  assert.strictEqual(rows.length, 3)
+  assert.strictEqual(rows[0].timestamp, '2026-06-06T00:00:00.000Z')
+  assert.strictEqual(rows[0].windSpeedTrueKn, mpsToKnots(5))
+  assert.strictEqual(rows[1].windSpeedTrueKn, mpsToKnots(5)) // sample-and-hold
+  assert.strictEqual(rows[2].windSpeedTrueKn, mpsToKnots(9))
+})
+
+test('resample on empty timeline returns []', () => {
+  assert.deepStrictEqual(buildTimeline([]).resample(1), [])
+})

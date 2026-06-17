@@ -43,6 +43,17 @@ class Timeline {
     }
     return out
   }
+
+  resample(hz = 1, opts = {}) {
+    if (this.start === null || this.end === null) return []
+    const stepMs = 1000 / hz
+    const rows = []
+    for (let ms = this.start; ms <= this.end + 1e-6; ms += stepMs) {
+      const t = Math.round(ms)
+      rows.push({ timestamp: new Date(t).toISOString(), ...toOverlay(this.at(t, opts), opts) })
+    }
+    return rows
+  }
 }
 
 function buildTimeline(deltas) {
