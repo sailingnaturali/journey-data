@@ -42,3 +42,27 @@ test('at pretty output mentions wind', () => {
   const out = run(['at', TRIP(), '--time', '2026-06-06T00:00:00.000Z'])
   assert.match(out, /Wind/)
 })
+
+const TRIP2 = () => tripFile([
+  '{"journeyDataVersion":1}',
+  JSON.stringify(delta('2026-06-06T00:00:00.000Z', 'environment.wind.speedTrue', 7.7)),
+  JSON.stringify(delta('2026-06-06T00:00:02.000Z', 'environment.wind.speedTrue', 9.26)),
+])
+
+test('export writes a CSV with header timestamp + overlay fields', () => {
+  const out = run(['export', TRIP2(), '--hz', '1'])
+  const lines = out.trim().split('\n')
+  assert.match(lines[0], /^timestamp,windSpeedTrueKn,/)
+  assert.strictEqual(lines.length, 1 + 3) // header + 3 rows (t=0,1,2)
+  assert.match(lines[1], /2026-06-06T00:00:00.000Z,15/)
+})
+
+test('moments resolves a CSV of timestamps to overlay rows', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moments-'))
+  const mfile = path.join(dir, 'm.csv')
+  fs.writeFileSync(mfile, 'timestamp,label\n2026-06-06T00:00:00.000Z,gust\n')
+  const out = run(['moments', TRIP2(), '--moments', mfile])
+  const lines = out.trim().split('\n')
+  assert.match(lines[0], /^timestamp,label,windSpeedTrueKn,/)
+  assert.match(lines[1], /^2026-06-06T00:00:00.000Z,gust,15/)
+})

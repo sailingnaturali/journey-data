@@ -1,5 +1,6 @@
 'use strict'
 const { parseArgs } = require('node:util')
+const fs = require('node:fs')
 const { loadTrip, toOverlay, OVERLAY_FIELDS } = require('./overlay')
 
 // "hh:mm:ss" or "mm:ss" or "ss" -> seconds
@@ -27,6 +28,35 @@ function prettyAt(fields) {
   return lines.join('\n')
 }
 
+function csvCell(x) {
+  if (x === null || x === undefined) return ''
+  const s = String(x)
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+function csvLine(cells) { return cells.map(csvCell).join(',') }
+
+function rowsToCsv(rows, columns) {
+  const out = [csvLine(columns)]
+  for (const r of rows) out.push(csvLine(columns.map((c) => r[c])))
+  return out.join('\n') + '\n'
+}
+
+function emit(text, outPath) {
+  if (outPath) fs.writeFileSync(outPath, text)
+  else process.stdout.write(text)
+}
+
+// minimal CSV reader: first row is the header; returns array of row objects
+function readCsv(file) {
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((l) => l.length)
+  if (lines.length === 0) return []
+  const header = lines[0].split(',')
+  return lines.slice(1).map((l) => {
+    const cells = l.split(',')
+    return Object.fromEntries(header.map((h, i) => [h.trim(), (cells[i] ?? '').trim()]))
+  })
+}
+
 async function main() {
   const { values, positionals } = parseArgs({
     options: {
@@ -38,14 +68,35 @@ async function main() {
     allowPositionals: true,
   })
   const [cmd, trip] = positionals
-  if (cmd !== 'at' || !trip) {
-    console.error('usage: node src/overlay-cli.js at <trip.jsonl[.gz]> (--time <UTC> | --video-start <UTC> --at <clock>) [--json] [--feet] [--max-stale <sec>]')
+  if (!trip || !['at', 'export', 'moments'].includes(cmd)) {
+    console.error('usage: node src/overlay-cli.js <at|export|moments> <trip.jsonl[.gz]> [options]')
     process.exit(2)
   }
   const opts = { feet: values.feet }
   if (values['max-stale'] != null) opts.maxStaleSec = Number(values['max-stale'])
-
   const tl = await loadTrip(trip)
+
+  if (cmd === 'export') {
+    const hz = values.hz != null ? Number(values.hz) : 1
+    const rows = tl.resample(hz, opts)
+    emit(rowsToCsv(rows, ['timestamp', ...OVERLAY_FIELDS]), values.out)
+    return
+  }
+
+  if (cmd === 'moments') {
+    if (!values.moments) { console.error('moments: --moments <file.csv> required'); process.exit(2) }
+    const input = readCsv(values.moments)
+    if (input.length === 0) console.error('warning: no moments in input')
+    const rows = input.map((m) => {
+      const ms = Date.parse(m.timestamp)
+      const fields = toOverlay(tl.at(ms, opts), opts)
+      return { timestamp: m.timestamp, label: m.label ?? '', ...fields }
+    })
+    emit(rowsToCsv(rows, ['timestamp', 'label', ...OVERLAY_FIELDS]), values.out)
+    return
+  }
+
+  // cmd === 'at'
   const ms = resolveTime(values)
   if (ms < tl.start || ms > tl.end) console.error(`warning: ${new Date(ms).toISOString()} is outside trip [${new Date(tl.start).toISOString()}, ${new Date(tl.end).toISOString()}]`)
   const provenance = tl.at(ms, opts)
