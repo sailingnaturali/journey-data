@@ -2,6 +2,7 @@
   "name": "@sailingnaturali/journey-data-pipeline",
   "private": true,
   "version": "0.1.0",
+  "bin": { "journey-overlay": "src/overlay-cli.js" },
   "description": "Pipeline: SignalK raw multiplexed logs -> scrubbed delta JSONL archives + manifest",
   "scripts": {
     "test": "node --test"
