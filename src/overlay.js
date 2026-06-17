@@ -1,5 +1,9 @@
 'use strict'
 
+const fs = require('node:fs')
+const zlib = require('node:zlib')
+const readline = require('node:readline')
+
 function round1(x) { return Math.round(x * 10) / 10 }
 function mpsToKnots(v) { return round1(v * 1.943844) }
 function radToDeg360(v) { let d = (v * 57.29578) % 360; if (d < 0) d += 360; return round1(d) }
@@ -125,7 +129,21 @@ function toOverlay(atResult, { feet = false, dropStale = true } = {}) {
   }
 }
 
+async function loadTrip(file) {
+  let input = fs.createReadStream(file)
+  if (file.endsWith('.gz')) input = input.pipe(zlib.createGunzip())
+  const rl = readline.createInterface({ input, crlfDelay: Infinity })
+  const deltas = []
+  for await (const line of rl) {
+    if (!line.trim()) continue
+    let obj
+    try { obj = JSON.parse(line) } catch { continue }
+    if (obj && Array.isArray(obj.updates)) deltas.push(obj) // skips the meta line (no updates[])
+  }
+  return buildTimeline(deltas)
+}
+
 module.exports = {
   round1, mpsToKnots, radToDeg360, radToDegSigned, ratioToPct, secToHours,
-  mToFeet, seaStateLabel, buildTimeline, Timeline, toOverlay, OVERLAY_FIELDS,
+  mToFeet, seaStateLabel, buildTimeline, Timeline, toOverlay, OVERLAY_FIELDS, loadTrip,
 }

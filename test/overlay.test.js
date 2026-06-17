@@ -142,3 +142,39 @@ test('OVERLAY_FIELDS lists every output field once', () => {
   const o = toOverlay(buildTimeline([]).at('2026-06-06T00:00:00.000Z'))
   assert.deepStrictEqual(new Set(OVERLAY_FIELDS), new Set(Object.keys(o)))
 })
+
+const { loadTrip } = require('../src/overlay')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const zlib = require('node:zlib')
+
+function writeTrip(name, lines) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'))
+  const file = path.join(dir, name)
+  const body = lines.join('\n') + '\n'
+  fs.writeFileSync(file, name.endsWith('.gz') ? zlib.gzipSync(body) : body)
+  return file
+}
+
+const META = '{"journeyDataVersion":1,"id":"t","start":"2026-06-06T00:00:00.000Z","end":"2026-06-06T00:00:10.000Z"}'
+const D1 = JSON.stringify(delta('2026-06-06T00:00:00.000Z', 'environment.wind.speedTrue', 5))
+const D2 = JSON.stringify(delta('2026-06-06T00:00:10.000Z', 'environment.wind.speedTrue', 9))
+
+test('loadTrip reads plain .jsonl, skipping the metadata line', async () => {
+  const file = writeTrip('t.jsonl', [META, D1, D2])
+  const tl = await loadTrip(file)
+  assert.strictEqual(tl.at('2026-06-06T00:00:05.000Z')['environment.wind.speedTrue'].value, 5)
+})
+
+test('loadTrip reads gzipped .jsonl.gz', async () => {
+  const file = writeTrip('t.jsonl.gz', [META, D1, D2])
+  const tl = await loadTrip(file)
+  assert.strictEqual(tl.at('2026-06-06T00:00:10.000Z')['environment.wind.speedTrue'].value, 9)
+})
+
+test('loadTrip skips blank and malformed lines', async () => {
+  const file = writeTrip('t.jsonl', [META, '', 'not json', D1])
+  const tl = await loadTrip(file)
+  assert.strictEqual(tl.at('2026-06-06T00:00:00.000Z')['environment.wind.speedTrue'].value, 5)
+})
