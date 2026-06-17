@@ -29,6 +29,23 @@ App Store, pick a trip, press play (it rebases timestamps
 to "now"). Or go native where a raw file exists: gunzip it and configure a
 SignalK file connection.
 
+## Overlay data (for video)
+
+Turn a trip into video-overlay values — wind, depth, boat speed, battery, sea
+state — in human units (knots, degrees, %, Beaufort), keyed by time:
+
+- `node src/overlay-cli.js at <trip.jsonl[.gz]> --time <UTC>` — the readings at
+  one moment (add `--json` for scripting; `--video-start <UTC> --at <mm:ss>`
+  maps a clip offset to UTC for GoPro↔SignalK alignment).
+- `node src/overlay-cli.js export <trip> [--hz 1] -o out.csv` — the whole trip
+  as an overlay-ready CSV (feeds Telemetry Overlay, DaVinci Resolve, etc.).
+- `node src/overlay-cli.js moments <trip> --moments moments.csv` — a CSV of
+  marked timestamps → resolved overlay rows.
+
+Reads SI deltas, emits display units via sample-and-hold at the queried time.
+Absent paths (e.g. solar/regen until the energy bus is bridged) and stale
+samples come back `null`, never faked. Installable as `journey-overlay`.
+
 ## Pipeline (this repo)
 
 `node src/cli.js --id <trip> --title "..." <raw.log>` converts raw
