@@ -179,7 +179,8 @@ Forkers: set `releaseBase` and `publisher` once in a `journey.config.json` at
 the repo root (copy `journey.config.json.example`) instead of repeating flags.
 Precedence is flag > config file > built-in default. **Without one of these your
 generated `files.*.url` point at Sailing Naturali's releases** — that's the
-default base.
+default base. The config file also accepts `out`, `manifest`, and `scrubList`
+(camelCase keys mirroring the like-named flags) if you want non-default paths.
 
 `self` is auto-detected as the `context` that most often carries a valid
 `navigation.position` (falling back to the most frequent context overall).
