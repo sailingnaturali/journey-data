@@ -150,3 +150,33 @@ test('no-context fixture: self key absent from meta', async () => {
   const meta = JSON.parse(lines[0])
   assert.strictEqual('self' in meta, false, 'meta must not have self when no contexts seen')
 })
+
+test('publish honors opts.releaseBase and opts.publisher', async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'jd-cli-base-'))
+  const manifestPath = path.join(out, 'manifest.json')
+  await publish({
+    inputs: [path.join(__dirname, 'fixtures', 'mini-trip.mux.log')],
+    id: 'demo-mini', title: 'Mini fixture trip', region: 'Salish Sea, BC',
+    outDir: out, manifestPath,
+    scrubListPath: path.join(__dirname, '..', 'scrub-list.json'),
+    releaseBase: 'https://cdn.example.com/dl', publisher: 'acme'
+  })
+  const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  assert.strictEqual(m.publisher, 'acme')
+  const trip = m.trips.find(t => t.id === 'demo-mini')
+  assert.ok(trip.files.deltas.url.startsWith('https://cdn.example.com/dl/demo-mini/'),
+    `unexpected url: ${trip.files.deltas.url}`)
+})
+
+test('publish without releaseBase falls back to the default RELEASE_BASE', async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'jd-cli-defbase-'))
+  const manifestPath = path.join(out, 'manifest.json')
+  await publish({
+    inputs: [path.join(__dirname, 'fixtures', 'mini-trip.mux.log')],
+    id: 'demo-mini', title: 'Mini fixture trip',
+    outDir: out, manifestPath,
+    scrubListPath: path.join(__dirname, '..', 'scrub-list.json')
+  })
+  const trip = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).trips.find(t => t.id === 'demo-mini')
+  assert.ok(trip.files.deltas.url.includes('github.com/sailingnaturali/journey-data/releases/download/demo-mini/'))
+})

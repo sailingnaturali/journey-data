@@ -10,8 +10,7 @@ const { parseMuxLine } = require('./mux')
 const { createConverter } = require('./convert')
 const { compile, scrubDelta } = require('./scrub')
 const { upsertTrip } = require('./manifest')
-
-const RELEASE_BASE = 'https://github.com/sailingnaturali/journey-data/releases/download'
+const { resolveConfig, RELEASE_BASE } = require('./config')
 
 function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
@@ -153,12 +152,13 @@ async function publish(opts) {
     fs.rmSync(rawFilePath, { force: true })
   }
 
+  const releaseBase = opts.releaseBase || RELEASE_BASE
   // Build manifest entry — files.raw only present when raw was published.
   const filesEntry = {
-    deltas: { url: `${RELEASE_BASE}/${opts.id}/${opts.id}.jsonl.gz`, sha256: sha256(deltasFile), bytes: fs.statSync(deltasFile).size }
+    deltas: { url: `${releaseBase}/${opts.id}/${opts.id}.jsonl.gz`, sha256: sha256(deltasFile), bytes: fs.statSync(deltasFile).size }
   }
   if (rawFile) {
-    filesEntry.raw = { url: `${RELEASE_BASE}/${opts.id}/${opts.id}.raw.log.gz`, sha256: sha256(rawFile), bytes: fs.statSync(rawFile).size }
+    filesEntry.raw = { url: `${releaseBase}/${opts.id}/${opts.id}.raw.log.gz`, sha256: sha256(rawFile), bytes: fs.statSync(rawFile).size }
   }
 
   const entry = {
@@ -169,7 +169,7 @@ async function publish(opts) {
     ...(opts.video ? { video: opts.video } : {}),
     ...(opts.post ? { post: opts.post } : {})
   }
-  upsertTrip(opts.manifestPath, entry)
+  upsertTrip(opts.manifestPath, entry, opts.publisher)
   return { entry, stats: { ...converter.stats, malformed }, deltasFile, rawFile, rawWithheld }
 }
 
@@ -179,20 +179,26 @@ async function main() {
       id: { type: 'string' }, title: { type: 'string' }, region: { type: 'string' },
       self: { type: 'string' },
       video: { type: 'string' }, post: { type: 'string' },
-      out: { type: 'string', default: 'dist' },
-      manifest: { type: 'string', default: 'manifest.json' },
-      'scrub-list': { type: 'string', default: 'scrub-list.json' }
+      'release-base': { type: 'string' }, publisher: { type: 'string' },
+      out: { type: 'string' },
+      manifest: { type: 'string' },
+      'scrub-list': { type: 'string' }
     },
     allowPositionals: true
   })
   if (!values.id || !values.title || positionals.length === 0) {
-    console.error('usage: node src/cli.js --id <id> --title <t> [--region r] [--video url] [--self context] [--post url] <raw.log>...')
+    console.error('usage: node src/cli.js --id <id> --title <t> [--region r] [--video url] [--self context] [--post url] [--release-base url|auto] [--publisher name] [--out dir] [--manifest path] [--scrub-list path] <raw.log>...')
     process.exit(2)
   }
+  const cfg = resolveConfig({
+    releaseBase: values['release-base'], publisher: values.publisher,
+    out: values.out, manifest: values.manifest, scrubList: values['scrub-list']
+  }, process.cwd())
   const r = await publish({
     inputs: positionals, id: values.id, title: values.title, region: values.region,
-    self: values.self, video: values.video, post: values.post, outDir: values.out,
-    manifestPath: values.manifest, scrubListPath: values['scrub-list']
+    self: values.self, video: values.video, post: values.post,
+    outDir: cfg.out, manifestPath: cfg.manifest, scrubListPath: cfg.scrubList,
+    releaseBase: cfg.releaseBase, publisher: cfg.publisher
   })
   console.log(JSON.stringify(r.stats))
   if (r.rawWithheld) {
