@@ -53,6 +53,11 @@ multiplexed logs (or `src/capture.js` websocket captures) to delta JSONL,
 scrubs them (`scrub-list.json`), archives, and updates the manifest.
 `npm test` runs the suite.
 
+**Bring your own data:** the replay plugin works with any conforming manifest,
+and this pipeline is reusable on your own SignalK server. The manifest +
+archive schema and an end-to-end recipe are in
+[`docs/BRING-YOUR-OWN-DATA.md`](docs/BRING-YOUR-OWN-DATA.md).
+
 ## Licensing
 
 Code MIT (`LICENSE`); data CC-BY-4.0 (`DATA_LICENSE`) — attribute
