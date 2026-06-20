@@ -27,3 +27,22 @@ test('replaces by id, sorts newest-start first', () => {
   assert.strictEqual(m.trips[0].id, 'b')
   assert.strictEqual(m.trips[1].title, 'new')
 })
+
+test('publisher arg: sets on create, overwrites on update, omitted leaves default/existing', () => {
+  const p = tmpManifest()
+  // create with explicit publisher
+  let m = upsertTrip(p, { id: 'a', start: '2026-08-01T00:00:00Z' }, 'acme')
+  assert.strictEqual(m.publisher, 'acme')
+  // update with a new publisher overwrites
+  m = upsertTrip(p, { id: 'a', start: '2026-08-01T00:00:00Z' }, 'acme2')
+  assert.strictEqual(m.publisher, 'acme2')
+  // omitted publisher leaves the existing value untouched
+  m = upsertTrip(p, { id: 'b', start: '2026-09-01T00:00:00Z' })
+  assert.strictEqual(m.publisher, 'acme2')
+})
+
+test('publisher omitted on a fresh manifest keeps the sailingnaturali default', () => {
+  const p = tmpManifest()
+  const m = upsertTrip(p, { id: 'a', start: '2026-08-01T00:00:00Z' })
+  assert.strictEqual(m.publisher, 'sailingnaturali')
+})
