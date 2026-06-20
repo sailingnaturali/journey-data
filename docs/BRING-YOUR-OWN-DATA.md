@@ -23,10 +23,11 @@ it, and replays it.
 
 Two things the code enforces that bite if you miss them:
 
-- **File URLs must be absolute.** The downloader does `new URL(file.url)` with
-  no base — relative paths like `deltas/trip.jsonl.gz` throw. Even when the
-  manifest and the archive sit in the same directory, write the full
-  `https://…` URL into `files.deltas.url`.
+- **File URLs may be relative to the manifest URL.** The plugin resolves each
+  `files.*.url` against `manifestUrl` (`new URL(url, manifestUrl)`), so if you
+  commit `my-trip.jsonl.gz` next to `manifest.json` you can write
+  `"url": "my-trip.jsonl.gz"`. Absolute `https://…` URLs still work and are
+  required when the archives live on a different host than the manifest.
 - **`sha256` must match the archive.** A mismatch is retried once, then fails
   the trip. `bytes` is only used to render the download-progress percentage;
   omitting it just means no percentage.
@@ -87,9 +88,10 @@ Everything the plugin actually needs:
 }
 ```
 
-The plugin's trip dropdown populates from the **cached** manifest, so after
-pointing `manifestUrl` at your manifest: enable the plugin once with the URL
-reachable, then reopen the config to pick the trip.
+The plugin's trip dropdown populates from the **cached** manifest. On the first
+start it also writes the available trip ids into the plugin status line, so you
+can type a `tripId` directly (it's free-text) or reopen the config to get the
+dropdown.
 
 ### The delta archive (`<id>.jsonl.gz`)
 
@@ -167,9 +169,17 @@ Flags (from `parseArgs` in `src/cli.js`):
 | `--self` | no | auto | Override the detected `self` context (see below). |
 | `--video` | no | — | Sets the trip's `video` URL. |
 | `--post` | no | — | Sets the trip's `post` URL. |
+| `--release-base` | no | our releases URL | Base for generated `files.*.url`. `auto` derives it from your `git remote get-url origin`. |
+| `--publisher` | no | `sailingnaturali` (on create) | Sets the manifest's top-level `publisher`. |
 | `--out` | no | `dist` | Output directory for the archives. |
 | `--manifest` | no | `manifest.json` | Manifest file to upsert into. |
 | `--scrub-list` | no | `scrub-list.json` | Scrub rules (see below). |
+
+Forkers: set `releaseBase` and `publisher` once in a `journey.config.json` at
+the repo root (copy `journey.config.json.example`) instead of repeating flags.
+Precedence is flag > config file > built-in default. **Without one of these your
+generated `files.*.url` point at Sailing Naturali's releases** — that's the
+default base.
 
 `self` is auto-detected as the `context` that most often carries a valid
 `navigation.position` (falling back to the most frequent context overall).
@@ -208,13 +218,10 @@ The plugin only needs the manifest and the `.jsonl.gz` files reachable at
   running Jekyll over the files, which would otherwise mangle paths. Keep it.
 - **Anything else** — S3, your own web server, etc. Just serve the bytes.
 
-> **Forking gotcha — release URLs are hardcoded.** `src/cli.js` builds
-> `files.*.url` from a constant `RELEASE_BASE` pointing at
-> `github.com/sailingnaturali/journey-data/releases/download`. After you run the
-> CLI in a fork, either edit the generated `url`s to your own host, or change
-> `RELEASE_BASE` in `src/cli.js` to your repo first. Likewise set `publisher`
-> in `manifest.json` to yourself (the generator defaults it to `sailingnaturali`
-> when it creates a fresh manifest).
+> **Forking:** point generated URLs at your host with `--release-base <url>`,
+> or `--release-base auto` to derive it from your `git origin`, or set
+> `releaseBase` in `journey.config.json`. Set `publisher` the same way. No
+> hand-editing of generated URLs needed.
 
 Then set the plugin's `manifestUrl` to wherever your `manifest.json` lives.
 
@@ -222,8 +229,9 @@ Then set the plugin's `manifestUrl` to wherever your `manifest.json` lives.
 
 ## Gotchas, in one place
 
-- **Absolute URLs only.** `files.deltas.url` is opened with `new URL(url)` and
-  no base; relative paths throw. Self-hosting included.
+- **File URLs: absolute or relative.** Relative `files.*.url` resolve against
+  `manifestUrl`; absolute URLs are used as-is. Co-locate archives with the
+  manifest and go relative, or point absolute URLs at any host.
 - **`self` controls vessel mapping.** Present and matching a delta's `context`
   → that vessel becomes the consuming server's `self`. Absent → it stays a
   remote vessel. It lives in the archive's metadata line, not the manifest.

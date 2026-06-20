@@ -58,6 +58,11 @@ and this pipeline is reusable on your own SignalK server. The manifest +
 archive schema and an end-to-end recipe are in
 [`docs/BRING-YOUR-OWN-DATA.md`](docs/BRING-YOUR-OWN-DATA.md).
 
+Forking to publish your own? Copy `journey.config.json.example` →
+`journey.config.json` and set `releaseBase`/`publisher` once (or pass
+`--release-base <url|auto> --publisher <name>`); the CLI prefers a flag, then
+the config file, then our defaults.
+
 ## Licensing
 
 Code MIT (`LICENSE`); data CC-BY-4.0 (`DATA_LICENSE`) — attribute
