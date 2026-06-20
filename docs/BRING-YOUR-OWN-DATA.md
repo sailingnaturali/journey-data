@@ -61,7 +61,7 @@ Two things the code enforces that bite if you miss them:
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `files.deltas` | object | **yes** | The archive the plugin replays. |
-| `files.deltas.url` | string | **yes** | Absolute URL to the `.jsonl.gz` archive. |
+| `files.deltas.url` | string | **yes** | URL to the `.jsonl.gz` archive. May be relative (resolved against `manifestUrl`) or absolute. |
 | `files.deltas.sha256` | string | **yes** | Hex digest of the archive; verified after download. |
 | `files.deltas.bytes` | number | no | Size, for the progress percentage only. |
 | `files.raw` | object | no | `{url, sha256, bytes}` for a byte-faithful raw server log. The pipeline emits it **only when scrubbing changed nothing** (privacy gate). The plugin does not use it — it's for SignalK's native file playback. |
@@ -208,8 +208,9 @@ commit `manifest.json`.
 
 ### Step 3 — host it
 
-The plugin only needs the manifest and the `.jsonl.gz` files reachable at
-**absolute** URLs. Any static host works.
+The plugin only needs the manifest and the `.jsonl.gz` files reachable at the
+URLs in the manifest (relative URLs resolve against the manifest's own URL).
+Any static host works.
 
 - **GitHub releases** (what we do): the CLI's printed `gh release create <id>
   <files>` uploads the archives as release assets.
@@ -240,7 +241,6 @@ Then set the plugin's `manifestUrl` to wherever your `manifest.json` lives.
   (tide, weather, currents plugins) coherent. `original` keeps recorded
   timestamps, for historical analysis. The archive always stores original
   timestamps; rebasing happens at replay time.
-- **`RELEASE_BASE` is hardcoded** — see the forking gotcha above.
 - **Coexistence.** Replay emits the same paths as live sources. Disable
   overlapping simulators/sensors while replaying, and never treat replay output
   as live navigation.
