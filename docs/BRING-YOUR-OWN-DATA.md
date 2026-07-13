@@ -139,7 +139,7 @@ anonymous on a stock `allow_readonly` server — no token.
 node src/capture.js ws://your-pi.local:3000 600 > captures/trip.log
 ```
 
-Defaults: `ws://naturalaspi.local:3000`, 60 seconds — change both. You can also
+Defaults: `ws://naturalaspi:3000`, 60 seconds — change both. You can also
 feed the converter a **real SignalK raw multiplexed server log** (the `.log`
 SignalK writes itself); it handles both `I` (SignalK delta JSON) and `N`
 (NMEA 0183) discriminator lines.

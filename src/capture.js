@@ -4,7 +4,7 @@
 // Reads are anonymous on our server; no token needed.
 const WebSocket = require('ws')
 
-const base = process.argv[2] || 'ws://naturalaspi.local:3000'
+const base = process.argv[2] || 'ws://naturalaspi:3000'
 const seconds = Number(process.argv[3] || 60)
 const ws = new WebSocket(`${base}/signalk/v1/stream?subscribe=all`)
 
